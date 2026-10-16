@@ -1,0 +1,56 @@
+name: Atualizar histórico no README
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gerar histórico dos últimos commits
+        run: |
+          git log -10 \
+            --invert-grep --grep='atualiza histórico no README' \
+            --pretty=format:'- `%h` %s (%an, %ad)' \
+            --date=format:'%d/%m/%Y' > historico.txt
+
+      - name: Inserir histórico no README
+        run: |
+          python3 - <<'EOF'
+          import re
+
+          hist = open('historico.txt', encoding='utf-8').read().strip()
+          bloco = (
+              "<!-- HISTORICO:INICIO -->\n"
+              "## Histórico de mudanças\n\n"
+              f"{hist}\n"
+              "<!-- HISTORICO:FIM -->"
+          )
+
+          texto = open('README.md', encoding='utf-8').read()
+          padrao = re.compile(
+              r"<!-- HISTORICO:INICIO -->.*?<!-- HISTORICO:FIM -->", re.S
+          )
+
+          if padrao.search(texto):
+              texto = padrao.sub(lambda m: bloco, texto)
+          else:
+              texto = texto.rstrip() + "\n\n" + bloco + "\n"
+
+          open('README.md', 'w', encoding='utf-8').write(texto)
+          EOF
+
+      - name: Commitar o README atualizado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --cached --quiet || (git commit -m "docs: atualiza histórico no README" && git push)
